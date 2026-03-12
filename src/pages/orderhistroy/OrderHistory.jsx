@@ -3,12 +3,12 @@
 
 import Table from '../../components/models/Table';
 import { useState } from 'react';
-import { ShoppingBag, Eye, Package, TrendingUp,  DollarSign, User, Phone, MapPin, Check, X, Clock } from 'lucide-react';
+import { ShoppingBag, Eye, Package, TrendingUp,  DollarSign, User, Phone, MapPin, Check, X, Clock, CheckCircle } from 'lucide-react';
 
 
 
 // Order Details Modal Component
-const OrderDetailsModal = ({ order, onClose }) => {
+const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComplete }) => {
   if (!order) return null;
 
   const getStatusColor = (status) => {
@@ -17,9 +17,15 @@ const OrderDetailsModal = ({ order, onClose }) => {
       case 'Shipped': return 'text-blue-600 bg-blue-50';
       case 'Processing': return 'text-yellow-600 bg-yellow-50';
       case 'Pending': return 'text-orange-600 bg-orange-50';
+      case 'Accepted': return 'text-green-600 bg-green-50';
+      case 'Declined': return 'text-red-600 bg-red-50';
+      case 'On Hold': return 'text-purple-600 bg-purple-50';
       default: return 'text-red-600 bg-red-50';
     }
   };
+
+  // Check if order can be acted upon (only for Pending orders)
+  const canTakeAction = order.status === 'Pending';
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -145,8 +151,44 @@ const OrderDetailsModal = ({ order, onClose }) => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex justify-end">
+        {/* Footer with Action Buttons */}
+        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex justify-between items-center">
+          {canTakeAction ? (
+            <div className="flex gap-3">
+              <button
+                onClick={() => onComplete(order)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <CheckCircle size={18} />
+                Complete
+              </button>
+              <button
+                onClick={() => onAccept(order)}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+              >
+                <Check size={18} />
+                Accept
+              </button>
+              <button
+                onClick={() => onHold(order)}
+                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+              >
+                <Clock size={18} />
+                Hold
+              </button>
+              <button
+                onClick={() => onDecline(order)}
+                className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+              >
+                <X size={18} />
+                Decline
+              </button>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">
+              Order status cannot be changed
+            </div>
+          )}
           <button
             onClick={onClose}
             className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition-colors"
@@ -160,7 +202,7 @@ const OrderDetailsModal = ({ order, onClose }) => {
 };
 
 const OrderHistory = () => {
-  const [orders] = useState([
+  const [orders, setOrders] = useState([
     {
       id: 1,
       orderNumber: 'ORD-2025-001',
@@ -278,7 +320,26 @@ const OrderHistory = () => {
     {
       key: 'status',
       header: 'Order Status',
-      className: 'whitespace-nowrap'
+      render: (value) => {
+        const getBadgeColor = (status) => {
+          switch(status) {
+            case 'Delivered': return 'bg-green-100 text-green-800';
+            case 'Shipped': return 'bg-blue-100 text-blue-800';
+            case 'Processing': return 'bg-yellow-100 text-yellow-800';
+            case 'Pending': return 'bg-orange-100 text-orange-800';
+            case 'Accepted': return 'bg-green-100 text-green-800';
+            case 'Declined': return 'bg-red-100 text-red-800';
+            case 'On Hold': return 'bg-purple-100 text-purple-800';
+            case 'Cancelled': return 'bg-gray-100 text-gray-800';
+            default: return 'bg-gray-100 text-gray-800';
+          }
+        };
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getBadgeColor(value)}`}>
+            {value}
+          </span>
+        );
+      }
     }
   ];
 
@@ -296,6 +357,46 @@ const OrderHistory = () => {
   }
 
   function handleCloseModal() {
+    setSelectedOrder(null);
+  }
+
+  // Handle Accept order
+  function handleAccept(order) {
+    setOrders(prevOrders => 
+      prevOrders.map(o => 
+        o.id === order.id ? { ...o, status: 'Accepted' } : o
+      )
+    );
+    setSelectedOrder(null);
+  }
+
+  // Handle Decline order
+  function handleDecline(order) {
+    setOrders(prevOrders => 
+      prevOrders.map(o => 
+        o.id === order.id ? { ...o, status: 'Declined' } : o
+      )
+    );
+    setSelectedOrder(null);
+  }
+
+  // Handle Hold order
+  function handleHold(order) {
+    setOrders(prevOrders => 
+      prevOrders.map(o => 
+        o.id === order.id ? { ...o, status: 'On Hold' } : o
+      )
+    );
+    setSelectedOrder(null);
+  }
+
+  // Handle Complete order
+  function handleComplete(order) {
+    setOrders(prevOrders => 
+      prevOrders.map(o => 
+        o.id === order.id ? { ...o, status: 'Delivered' } : o
+      )
+    );
     setSelectedOrder(null);
   }
 
@@ -367,7 +468,7 @@ const OrderHistory = () => {
         {/* Filter Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-4">
           <div className="flex flex-wrap gap-2">
-            {['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map((status) => (
+            {['All', 'Pending', 'Processing', 'Accepted', 'On Hold', 'Declined', 'Shipped', 'Delivered', 'Cancelled'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
@@ -403,6 +504,10 @@ const OrderHistory = () => {
           <OrderDetailsModal
             order={selectedOrder}
             onClose={handleCloseModal}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+            onHold={handleHold}
+            onComplete={handleComplete}
           />
         )}
       </div>
