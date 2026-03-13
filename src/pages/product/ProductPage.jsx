@@ -8,6 +8,7 @@ const ProductManagement = () => {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [products, setProducts] = useState([]);
+  console.log(products,"QW@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -49,8 +50,26 @@ const ProductManagement = () => {
       console.log('Products API Response:', productsResponse);
       console.log('Products Data:', productsResponse.data);
       
-      // Check if data is nested
-      const productsData = productsResponse.data?.data || productsResponse.data || [];
+      // Check if data is nested: response.data.data.data is the array
+      let productsData = productsResponse.data?.data?.data || productsResponse.data?.data || productsResponse.data || [];
+      
+      // Ensure productsData is an array before mapping
+      if (Array.isArray(productsData)) {
+        // Map products to include categoryId and subcategoryId if they're not present
+        productsData = productsData.map(product => {
+          // If categoryId/subcategoryId not present, try to extract from category/subcategory objects
+          if (!product.categoryId && product.category) {
+            product.categoryId = product.category._id || product.category.id;
+          }
+          if (!product.subCategoryId && product.subcategory) {
+            product.subCategoryId = product.subcategory._id || product.subcategory.id;
+          }
+          return product;
+        });
+      } else {
+        productsData = [];
+      }
+      
       console.log('Processed Products:', productsData);
       setProducts(productsData);
 
@@ -65,7 +84,7 @@ const ProductManagement = () => {
 
   const columns = [
     {
-      key: 'id',
+      key: '_id',
       header: 'ID',
       className: 'whitespace-nowrap font-medium text-green-600'
     },
@@ -95,27 +114,27 @@ const ProductManagement = () => {
       className: 'whitespace-nowrap text-gray-700'
     },
     {
-      key: 'weight',
-      header: 'Weight',
+      key: 'weightInKg',
+      header: 'Weight (kg)',
       className: 'whitespace-nowrap text-gray-600'
     },
     {
-      key: 'categoryName',
-      header: 'Category',
+      key: 'categoryId',
+      header: 'Category ID',
       className: 'whitespace-nowrap text-blue-600'
     },
     {
-      key: 'subcategoryName',
-      header: 'Variety',
+      key: 'subCategoryId',
+      header: 'SubCategory ID',
       className: 'whitespace-nowrap text-purple-600'
     },
     {
-      key: 'price',
+      key: 'generalPrice',
       header: 'Price',
       className: 'whitespace-nowrap font-semibold text-green-700'
     },
     {
-      key: 'stock',
+      key: 'stockQuantity',
       header: 'Stock',
       className: 'whitespace-nowrap'
     }
@@ -199,13 +218,13 @@ const ProductManagement = () => {
     setEditingProduct(null);
   }
 
-  // Calculate stats
-  const totalValue = products.reduce((sum, prod) => sum + (prod.price * prod.stock), 0);
-  const lowStockCount = products.filter(prod => prod.stock <= 10 && prod.stock > 0).length;
-  const outOfStockCount = products.filter(prod => prod.stock === 0).length;
+  // Calculate stats - with null check
+  const totalValue = Array.isArray(products) ? products.reduce((sum, prod) => sum + ((prod.generalPrice || 0) * (prod.stockQuantity || 0)), 0) : 0;
+  const lowStockCount = Array.isArray(products) ? products.filter(prod => (prod.stockQuantity || 0) <= 10 && (prod.stockQuantity || 0) > 0).length : 0;
+  const outOfStockCount = Array.isArray(products) ? products.filter(prod => (prod.stockQuantity || 0) === 0).length : 0;
 
   // Loading state
-  if (loading && products.length === 0) {
+  if (loading && (!Array.isArray(products) || products.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -276,7 +295,7 @@ const ProductManagement = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Products</p>
-                <p className="text-2xl font-bold text-gray-800">{products.length}</p>
+                <p className="text-2xl font-bold text-gray-800">{Array.isArray(products) ? products.length : 0}</p>
               </div>
               <Package className="text-green-600" size={32} />
             </div>
@@ -328,10 +347,10 @@ const ProductManagement = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">
-              Rice Products ({products.length})
+              Rice Products ({Array.isArray(products) ? products.length : 0})
             </h2>
           </div>
-          {loading && products.length > 0 ? (
+          {loading && Array.isArray(products) && products.length > 0 ? (
             <div className="p-8 text-center text-gray-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
               <p>Updating...</p>
