@@ -2,9 +2,9 @@
 // Import your existing Table component
 
 import Table from '../../components/models/Table';
-import { useState } from 'react';
-import { ShoppingBag, Eye, Package, TrendingUp,  DollarSign, User, Phone, MapPin, Check, X, Clock, CheckCircle } from 'lucide-react';
-
+import { useState, useEffect } from 'react';
+import { ShoppingBag, Eye, Package, TrendingUp, DollarSign, User, Phone, MapPin, Check, X, Clock, CheckCircle } from 'lucide-react';
+import { ordersAPI } from '../../components/api/api';
 
 
 // Order Details Modal Component
@@ -13,19 +13,31 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'Delivered': return 'text-green-600 bg-green-50';
-      case 'Shipped': return 'text-blue-600 bg-blue-50';
-      case 'Processing': return 'text-yellow-600 bg-yellow-50';
-      case 'Pending': return 'text-orange-600 bg-orange-50';
-      case 'Accepted': return 'text-green-600 bg-green-50';
-      case 'Declined': return 'text-red-600 bg-red-50';
-      case 'On Hold': return 'text-purple-600 bg-purple-50';
-      default: return 'text-red-600 bg-red-50';
+      case 'DELIVERED': return 'text-green-600 bg-green-50';
+      case 'CONFIRMED': return 'text-blue-600 bg-blue-50';
+      case 'PENDING': return 'text-orange-600 bg-orange-50';
+      case 'ACCEPTED': return 'text-green-600 bg-green-50';
+      case 'DECLINED': return 'text-red-600 bg-red-50';
+      case 'ON_HOLD': return 'text-purple-600 bg-purple-50';
+      default: return 'text-gray-600 bg-gray-50';
     }
   };
 
   // Check if order can be acted upon (only for Pending orders)
-  const canTakeAction = order.status === 'Pending';
+  const canTakeAction = order.status === 'PENDING';
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -73,19 +85,19 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Customer Name</p>
-                <p className="font-medium text-gray-800">{order.customerName}</p>
+                <p className="font-medium text-gray-800">{order.customerName || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 flex items-center gap-1">
                   <Phone size={14} /> Phone Number
                 </p>
-                <p className="font-medium text-gray-800">{order.phone}</p>
+                <p className="font-medium text-gray-800">{order.phone || 'N/A'}</p>
               </div>
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-600 flex items-center gap-1">
                   <MapPin size={14} /> Delivery Address
                 </p>
-                <p className="font-medium text-gray-800">{order.address}</p>
+                <p className="font-medium text-gray-800">{order.address || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -97,28 +109,32 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
               Order Items
             </h3>
             <div className="space-y-3">
-              {order.items.map((item, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    {item.image && (
-                      <img 
-                        src={item.image} 
-                        alt={item.name}
-                        className="w-16 h-16 object-cover rounded-md"
-                      />
-                    )}
-                    <div>
-                      <p className="font-semibold text-gray-800">{item.name}</p>
-                      <p className="text-sm text-gray-600">{item.weight}</p>
-                      <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+              {order.items && order.items.length > 0 ? (
+                order.items.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {item.product?.image && (
+                        <img 
+                          src={item.product.image} 
+                          alt={item.product?.name || 'Product'}
+                          className="w-16 h-16 object-cover rounded-md"
+                        />
+                      )}
+                      <div>
+                        <p className="font-semibold text-gray-800">{item.product?.name || 'Unknown Product'}</p>
+                        <p className="text-sm text-gray-600">{item.product?.weightInKg ? `${item.product.weightInKg}kg` : ''}</p>
+                        <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">₹{item.price.toFixed(2)}</p>
+                      <p className="text-sm text-gray-500">₹{item.price} each</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-green-600">₹{item.price.toFixed(2)}</p>
-                    <p className="text-sm text-gray-500">₹{(item.price / item.quantity).toFixed(2)} each</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-gray-500">No items found</p>
+              )}
             </div>
           </div>
 
@@ -130,15 +146,23 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between">
+                <span className="text-gray-600">Sub Total</span>
+                <span className="font-medium text-gray-800">₹{order.subTotal?.toFixed(2) || '0.00'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Delivery Charge</span>
+                <span className="font-medium text-gray-800">₹{order.deliveryCharge?.toFixed(2) || '0.00'}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600">Payment Method</span>
                 <span className="font-medium text-gray-800">{order.paymentMethod}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Payment Status</span>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  order.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' :
-                  order.paymentStatus === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
+                  order.paymentStatus === 'SUCCESS' ? 'bg-green-100 text-green-800' :
+                  order.paymentStatus === 'NOT_REQUIRED' ? 'bg-blue-100 text-blue-800' :
+                  'bg-yellow-100 text-yellow-800'
                 }`}>
                   {order.paymentStatus}
                 </span>
@@ -202,89 +226,77 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
 };
 
 const OrderHistory = () => {
-  const [orders, setOrders] = useState([
-    {
-      id: 1,
-      orderNumber: 'ORD-2025-001',
-      customerName: 'Rajesh Kumar',
-      phone: '+91 98765 43210',
-      address: '123, MG Road, Sector 15, Ghaziabad, UP - 201001',
-      orderDate: '2025-10-01',
-      totalAmount: 1499.00,
-      status: 'Delivered',
-      paymentMethod: 'UPI',
-      paymentStatus: 'Paid',
-      items: [
-        { name: 'India Gate Premium Basmati Rice', weight: '5kg', quantity: 2, price: 1198.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' },
-        { name: 'Organic Brown Rice', weight: '1kg', quantity: 1, price: 301.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' }
-      ]
-    },
-    {
-      id: 2,
-      orderNumber: 'ORD-2025-002',
-      customerName: 'Priya Sharma',
-      phone: '+91 98765 43211',
-      address: '456, Nehru Place, Delhi - 110019',
-      orderDate: '2025-10-02',
-      totalAmount: 2450.00,
-      status: 'Shipped',
-      paymentMethod: 'Credit Card',
-      paymentStatus: 'Paid',
-      items: [
-        { name: 'Premium Basmati Rice', weight: '10kg', quantity: 1, price: 1200.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' },
-        { name: 'Black Rice', weight: '1kg', quantity: 2, price: 1250.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' }
-      ]
-    },
-    {
-      id: 3,
-      orderNumber: 'ORD-2025-003',
-      customerName: 'Amit Patel',
-      phone: '+91 98765 43212',
-      address: '789, Park Street, Kolkata - 700016',
-      orderDate: '2025-10-03',
-      totalAmount: 850.00,
-      status: 'Processing',
-      paymentMethod: 'Cash on Delivery',
-      paymentStatus: 'Pending',
-      items: [
-        { name: 'Sona Masoori Rice', weight: '5kg', quantity: 1, price: 850.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' }
-      ]
-    },
-    {
-      id: 4,
-      orderNumber: 'ORD-2025-004',
-      customerName: 'Sneha Reddy',
-      phone: '+91 98765 43213',
-      address: '321, Banjara Hills, Hyderabad - 500034',
-      orderDate: '2025-10-04',
-      totalAmount: 599.00,
-      status: 'Pending',
-      paymentMethod: 'UPI',
-      paymentStatus: 'Paid',
-      items: [
-        { name: 'Organic Brown Basmati Rice', weight: '1kg', quantity: 1, price: 599.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' }
-      ]
-    },
-    {
-      id: 5,
-      orderNumber: 'ORD-2025-005',
-      customerName: 'Vikram Singh',
-      phone: '+91 98765 43214',
-      address: '654, Civil Lines, Jaipur - 302006',
-      orderDate: '2025-09-28',
-      totalAmount: 3200.00,
-      status: 'Delivered',
-      paymentMethod: 'Net Banking',
-      paymentStatus: 'Paid',
-      items: [
-        { name: 'India Gate Premium Basmati Rice', weight: '5kg', quantity: 4, price: 2400.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' },
-        { name: 'Jasmine Rice', weight: '2kg', quantity: 1, price: 800.00, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400' }
-      ]
-    }
-  ]);
-
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filterStatus, setFilterStatus] = useState('All');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  // Fetch orders from API
+  const fetchOrders = async (page = 1) => {
+    setLoading(true);
+    try {
+      const response = await ordersAPI.getOrders({ page, limit: 10 });
+      if (response.data && response.data.success) {
+        setOrders(response.data.data.data || []);
+        setTotalPages(response.data.data.totalPages || 1);
+        setTotal(response.data.data.total || 0);
+        setCurrentPage(response.data.data.page || 1);
+      } else {
+        setOrders([]);
+      }
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError('Failed to load orders. Please try again.');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders(currentPage);
+  }, [currentPage]);
+
+  // Map API response to component format
+  const mapOrderData = (apiOrder) => {
+    const formatDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    return {
+      id: apiOrder._id,
+      orderNumber: apiOrder._id?.substring(0, 8).toUpperCase() || 'N/A',
+      customerName: apiOrder.user?.mobile || 'Unknown',
+      phone: apiOrder.user?.mobile || 'N/A',
+      address: apiOrder.deliveryLocation?.formattedAddress || apiOrder.deliveryLocation?.address || 'N/A',
+      orderDate: formatDate(apiOrder.createdAt),
+      totalAmount: apiOrder.payableAmount || 0,
+      status: apiOrder.status || 'PENDING',
+      paymentMethod: apiOrder.paymentMethod || 'COD',
+      paymentStatus: apiOrder.paymentStatus || 'NOT_REQUIRED',
+      subTotal: apiOrder.subTotal || 0,
+      deliveryCharge: apiOrder.deliveryCharge || 0,
+      items: apiOrder.items || [],
+      originalData: apiOrder
+    };
+  };
+
+  const mappedOrders = orders.map(mapOrderData);
 
   const columns = [
     {
@@ -294,7 +306,7 @@ const OrderHistory = () => {
     },
     {
       key: 'customerName',
-      header: 'Customer Name',
+      header: 'Customer',
       className: 'whitespace-nowrap font-semibold'
     },
     {
@@ -315,7 +327,23 @@ const OrderHistory = () => {
     {
       key: 'paymentStatus',
       header: 'Payment Status',
-      className: 'whitespace-nowrap'
+      className: 'whitespace-nowrap',
+      render: (value) => {
+        const getPaymentBadgeColor = (status) => {
+          switch(status) {
+            case 'SUCCESS': return 'bg-green-100 text-green-800';
+            case 'NOT_REQUIRED': return 'bg-blue-100 text-blue-800';
+            case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+            case 'FAILED': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+          }
+        };
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPaymentBadgeColor(value)}`}>
+            {value}
+          </span>
+        );
+      }
     },
     {
       key: 'status',
@@ -323,14 +351,14 @@ const OrderHistory = () => {
       render: (value) => {
         const getBadgeColor = (status) => {
           switch(status) {
-            case 'Delivered': return 'bg-green-100 text-green-800';
-            case 'Shipped': return 'bg-blue-100 text-blue-800';
-            case 'Processing': return 'bg-yellow-100 text-yellow-800';
-            case 'Pending': return 'bg-orange-100 text-orange-800';
-            case 'Accepted': return 'bg-green-100 text-green-800';
-            case 'Declined': return 'bg-red-100 text-red-800';
-            case 'On Hold': return 'bg-purple-100 text-purple-800';
-            case 'Cancelled': return 'bg-gray-100 text-gray-800';
+            case 'DELIVERED': return 'bg-green-100 text-green-800';
+            case 'CONFIRMED': return 'bg-blue-100 text-blue-800';
+            case 'PENDING': return 'bg-orange-100 text-orange-800';
+            case 'ACCEPTED': return 'bg-green-100 text-green-800';
+            case 'DECLINED': return 'bg-red-100 text-red-800';
+            case 'ON_HOLD': return 'bg-purple-100 text-purple-800';
+            case 'SHIPPED': return 'bg-indigo-100 text-indigo-800';
+            case 'CANCELLED': return 'bg-gray-100 text-gray-800';
             default: return 'bg-gray-100 text-gray-800';
           }
         };
@@ -362,9 +390,10 @@ const OrderHistory = () => {
 
   // Handle Accept order
   function handleAccept(order) {
+    // In a real app, you would make an API call here
     setOrders(prevOrders => 
       prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'Accepted' } : o
+        o.id === order.id ? { ...o, status: 'ACCEPTED' } : o
       )
     );
     setSelectedOrder(null);
@@ -374,7 +403,7 @@ const OrderHistory = () => {
   function handleDecline(order) {
     setOrders(prevOrders => 
       prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'Declined' } : o
+        o.id === order.id ? { ...o, status: 'DECLINED' } : o
       )
     );
     setSelectedOrder(null);
@@ -384,7 +413,7 @@ const OrderHistory = () => {
   function handleHold(order) {
     setOrders(prevOrders => 
       prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'On Hold' } : o
+        o.id === order.id ? { ...o, status: 'ON_HOLD' } : o
       )
     );
     setSelectedOrder(null);
@@ -394,22 +423,29 @@ const OrderHistory = () => {
   function handleComplete(order) {
     setOrders(prevOrders => 
       prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'Delivered' } : o
+        o.id === order.id ? { ...o, status: 'DELIVERED' } : o
       )
     );
     setSelectedOrder(null);
   }
 
-  // Filter orders
+  // Filter orders based on status
   const filteredOrders = filterStatus === 'All' 
-    ? orders 
-    : orders.filter(order => order.status === filterStatus);
+    ? mappedOrders 
+    : mappedOrders.filter(order => order.status === filterStatus);
 
   // Calculate stats
-  const totalOrders = orders.length;
-  const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const deliveredOrders = orders.filter(order => order.status === 'Delivered').length;
-  const pendingOrders = orders.filter(order => order.status === 'Pending' || order.status === 'Processing').length;
+  const totalOrders = total;
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.payableAmount || 0), 0);
+  const deliveredOrders = orders.filter(order => order.status === 'DELIVERED').length;
+  const pendingOrders = orders.filter(order => order.status === 'PENDING').length;
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -431,7 +467,7 @@ const OrderHistory = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Orders</p>
-                <p className="text-2xl font-bold text-gray-800">{totalOrders}</p>
+                <p className="text-2xl font-bold text-gray-800">{loading ? '...' : totalOrders}</p>
               </div>
               <ShoppingBag className="text-green-600" size={32} />
             </div>
@@ -440,7 +476,7 @@ const OrderHistory = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-600">₹{totalRevenue.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-green-600">₹{loading ? '...' : totalRevenue.toFixed(2)}</p>
               </div>
               <TrendingUp className="text-green-600" size={32} />
             </div>
@@ -449,7 +485,7 @@ const OrderHistory = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Delivered</p>
-                <p className="text-2xl font-bold text-green-600">{deliveredOrders}</p>
+                <p className="text-2xl font-bold text-green-600">{loading ? '...' : deliveredOrders}</p>
               </div>
               <Check className="text-green-600" size={32} />
             </div>
@@ -458,7 +494,7 @@ const OrderHistory = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingOrders}</p>
+                <p className="text-2xl font-bold text-orange-600">{loading ? '...' : pendingOrders}</p>
               </div>
               <Clock className="text-orange-600" size={32} />
             </div>
@@ -468,7 +504,7 @@ const OrderHistory = () => {
         {/* Filter Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-4">
           <div className="flex flex-wrap gap-2">
-            {['All', 'Pending', 'Processing', 'Accepted', 'On Hold', 'Declined', 'Shipped', 'Delivered', 'Cancelled'].map((status) => (
+            {['All', 'PENDING', 'CONFIRMED', 'ACCEPTED', 'ON_HOLD', 'DECLINED', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
@@ -488,15 +524,64 @@ const OrderHistory = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-800">
-              Orders ({filteredOrders.length})
+              Orders ({loading ? '...' : filteredOrders.length})
             </h2>
           </div>
-          <Table
-            columns={columns}
-            data={filteredOrders}
-            actions={actions}
-            emptyMessage="No orders found."
-          />
+          
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">Loading orders...</div>
+          ) : error ? (
+            <div className="p-8 text-center text-red-500">{error}</div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">No orders found.</div>
+          ) : (
+            <>
+              <Table
+                columns={columns}
+                data={filteredOrders}
+                actions={actions}
+                emptyMessage="No orders found."
+              />
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+                  <div className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-4 py-2 rounded-md ${
+                          currentPage === page
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Order Details Modal */}
