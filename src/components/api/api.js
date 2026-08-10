@@ -112,6 +112,15 @@ export const ordersAPI = {
   deleteOrder: (id) => api.delete(`/orders/delete/${id}`),
 };
 
+// Banners API endpoints
+export const bannersAPI = {
+  getBanners: (params) => api.get('/banners/getAll', { params }),
+  getBannerById: (id) => api.get(`/banners/get/${id}`),
+  createBanner: (bannerData) => api.post('/banners/create', bannerData),
+  updateBanner: (id, bannerData) => api.put(`/banners/update/${id}`, bannerData),
+  deleteBanner: (id) => api.delete(`/banners/delete/${id}`),
+};
+
 // Dashboard API endpoints
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),

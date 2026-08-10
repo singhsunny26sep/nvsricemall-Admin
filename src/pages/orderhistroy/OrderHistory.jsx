@@ -3,22 +3,109 @@
 
 import Table from '../../components/models/Table';
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Eye, Package, TrendingUp, DollarSign, User, Phone, MapPin, Check, X, Clock, CheckCircle } from 'lucide-react';
+import { ShoppingBag, Eye, Package, TrendingUp, DollarSign, User, Phone, MapPin, Check, X, Clock, CheckCircle, Printer, Download } from 'lucide-react';
 import { ordersAPI } from '../../components/api/api';
 
 
 // Order Details Modal Component
-const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComplete }) => {
+const OrderDetailsModal = ({ order, onClose, onConfirm, onCancel, onComplete, onPending }) => {
   if (!order) return null;
+
+  const handlePrint = () => {
+    const printContent = `
+      Order Details
+      Order #: ${order.orderNumber}
+      Date: ${order.orderDate}
+      Status: ${order.status}
+      Total: ₹${order.totalAmount?.toFixed(2)}
+
+      Customer: ${order.customerName}
+      Phone: ${order.phone}
+      Address: ${order.address}
+
+      Items:
+      ${order.items?.map((item, i) => `${i+1}. ${item.product?.name} - ${item.quantity} x ₹${item.price}`).join('\n') || 'No items'}
+
+      Payment: ${order.paymentMethod}
+      Payment Status: ${order.paymentStatus}
+    `;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`<pre>${printContent}</pre>`);
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const handleDownload = () => {
+    const printContent = `<!DOCTYPE html>
+      <html>
+      <head>
+        <title>Order #${order.orderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .header { background: #10b981; color: white; padding: 16px; margin: -20px -20px 20px; }
+          .section { margin-bottom: 20px; border: 1px solid #e5e7eb; padding: 16px; border-radius: 8px; }
+          .label { color: #6b7280; font-size: 14px; }
+          .value { font-weight: bold; color: #1f2937; margin-top: 4px; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+          .item { background: #f9fafb; padding: 12px; margin-bottom: 8px; border-radius: 4px; }
+          h2 { margin: 0 0 16px 0; color: #10b981; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 style="margin:0">Order Invoice</h1>
+          <p>Order #${order.orderNumber}</p>
+        </div>
+        
+        <div class="section">
+          <h2>Order Information</h2>
+          <div class="row"><span class="label">Order Date:</span><span class="value">${order.orderDate}</span></div>
+          <div class="row"><span class="label">Status:</span><span class="value">${order.status}</span></div>
+          <div class="row"><span class="label">Payment Method:</span><span class="value">${order.paymentMethod}</span></div>
+        </div>
+        
+        <div class="section">
+          <h2>Customer Information</h2>
+          <div class="row"><span class="label">Customer Name:</span><span class="value">${order.customerName || 'N/A'}</span></div>
+          <div class="row"><span class="label">Phone:</span><span class="value">${order.phone || 'N/A'}</span></div>
+          <div class="row"><span class="label">Delivery Address:</span><span class="value">${order.address || 'N/A'}</span></div>
+        </div>
+        
+        <div class="section">
+          <h2>Order Items</h2>
+          ${order.items?.map((item, i) => `
+            <div class="item">
+              <div><strong>${i+1}. ${item.product?.name || 'Unknown Product'}</strong></div>
+              <div>Quantity: ${item.quantity} x ₹${item.price}</div>
+              <div style="text-align: right; font-weight: bold;">₹${(item.price * item.quantity).toFixed(2)}</div>
+            </div>
+          `).join('') || '<p>No items found</p>'}
+        </div>
+        
+        <div class="section">
+          <h2>Payment Summary</h2>
+          <div class="row"><span class="label">Subtotal:</span><span class="value">₹${order.subTotal?.toFixed(2) || '0.00'}</span></div>
+          <div class="row"><span class="label">Delivery Charge:</span><span class="value">₹${order.deliveryCharge?.toFixed(2) || '0.00'}</span></div>
+          <div class="row" style="border-top: 2px solid #10b981; padding-top: 8px; font-size: 18px;"><span class="label">Total Amount:</span><span class="value">₹${order.totalAmount?.toFixed(2) || '0.00'}</span></div>
+        </div>
+      </body>
+      </html>`;
+    const blob = new Blob([printContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `order-${order.orderNumber}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getStatusColor = (status) => {
     switch(status) {
       case 'DELIVERED': return 'text-green-600 bg-green-50';
       case 'CONFIRMED': return 'text-blue-600 bg-blue-50';
       case 'PENDING': return 'text-orange-600 bg-orange-50';
-      case 'ACCEPTED': return 'text-green-600 bg-green-50';
-      case 'DECLINED': return 'text-red-600 bg-red-50';
-      case 'ON_HOLD': return 'text-purple-600 bg-purple-50';
+      case 'INITIATED': return 'text-yellow-600 bg-yellow-50';
+      case 'CANCELLED': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
@@ -75,7 +162,6 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
               <p className="text-lg font-bold text-green-600">₹{order.totalAmount.toFixed(2)}</p>
             </div>
           </div>
-
           {/* Customer Information */}
           <div className="border border-gray-200 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -176,7 +262,24 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
         </div>
 
         {/* Footer with Action Buttons */}
-        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex justify-between items-center">
+        <div className="bg-gray-50 px-6 py-4 rounded-b-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              <Printer size={16} />
+              Print
+            </button>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+            >
+              <Download size={16} />
+              Save Invoice
+            </button>
+          </div>
+          
           {canTakeAction ? (
             <div className="flex gap-3">
               <button
@@ -187,25 +290,25 @@ const OrderDetailsModal = ({ order, onClose, onAccept, onDecline, onHold, onComp
                 Complete
               </button>
               <button
-                onClick={() => onAccept(order)}
+                onClick={() => onPending(order)}
+                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition-colors"
+              >
+                <Clock size={18} />
+                Pending
+              </button>
+              <button
+                onClick={() => onConfirm(order)}
                 className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
               >
                 <Check size={18} />
-                Accept
+                Confirm
               </button>
               <button
-                onClick={() => onHold(order)}
-                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
-              >
-                <Clock size={18} />
-                Hold
-              </button>
-              <button
-                onClick={() => onDecline(order)}
+                onClick={() => onCancel(order)}
                 className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
               >
                 <X size={18} />
-                Decline
+                Cancel
               </button>
             </div>
           ) : (
@@ -354,11 +457,8 @@ const OrderHistory = () => {
             case 'DELIVERED': return 'bg-green-100 text-green-800';
             case 'CONFIRMED': return 'bg-blue-100 text-blue-800';
             case 'PENDING': return 'bg-orange-100 text-orange-800';
-            case 'ACCEPTED': return 'bg-green-100 text-green-800';
-            case 'DECLINED': return 'bg-red-100 text-red-800';
-            case 'ON_HOLD': return 'bg-purple-100 text-purple-800';
-            case 'SHIPPED': return 'bg-indigo-100 text-indigo-800';
-            case 'CANCELLED': return 'bg-gray-100 text-gray-800';
+            case 'INITIATED': return 'bg-yellow-100 text-yellow-800';
+            case 'CANCELLED': return 'bg-red-100 text-red-800';
             default: return 'bg-gray-100 text-gray-800';
           }
         };
@@ -388,45 +488,68 @@ const OrderHistory = () => {
     setSelectedOrder(null);
   }
 
-  // Handle Accept order
-  function handleAccept(order) {
-    // In a real app, you would make an API call here
-    setOrders(prevOrders => 
-      prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'ACCEPTED' } : o
-      )
-    );
-    setSelectedOrder(null);
+  // Handle Confirm order
+  async function handleConfirm(order) {
+    try {
+      await ordersAPI.updateOrder(order.id, { status: 'CONFIRMED' });
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          o.id === order.id ? { ...o, status: 'CONFIRMED' } : o
+        )
+      );
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    }
   }
 
-  // Handle Decline order
-  function handleDecline(order) {
-    setOrders(prevOrders => 
-      prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'DECLINED' } : o
-      )
-    );
-    setSelectedOrder(null);
-  }
-
-  // Handle Hold order
-  function handleHold(order) {
-    setOrders(prevOrders => 
-      prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'ON_HOLD' } : o
-      )
-    );
-    setSelectedOrder(null);
+  // Handle Cancel order
+  async function handleCancel(order) {
+    try {
+      await ordersAPI.updateOrder(order.id, { status: 'CANCELLED' });
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          o.id === order.id ? { ...o, status: 'CANCELLED' } : o
+        )
+      );
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    }
   }
 
   // Handle Complete order
-  function handleComplete(order) {
-    setOrders(prevOrders => 
-      prevOrders.map(o => 
-        o.id === order.id ? { ...o, status: 'DELIVERED' } : o
-      )
-    );
-    setSelectedOrder(null);
+  async function handleComplete(order) {
+    try {
+      await ordersAPI.updateOrder(order.id, { status: 'DELIVERED' });
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          o.id === order.id ? { ...o, status: 'DELIVERED' } : o
+        )
+      );
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    }
+  }
+
+  // Handle Pending order
+  async function handlePending(order) {
+    try {
+      await ordersAPI.updateOrder(order.id, { status: 'PENDING' });
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          o.id === order.id ? { ...o, status: 'PENDING' } : o
+        )
+      );
+      setSelectedOrder(null);
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status. Please try again.');
+    }
   }
 
   // Filter orders based on status
@@ -504,7 +627,7 @@ const OrderHistory = () => {
         {/* Filter Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-4">
           <div className="flex flex-wrap gap-2">
-            {['All', 'PENDING', 'CONFIRMED', 'ACCEPTED', 'ON_HOLD', 'DECLINED', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
+            {['All', 'INITIATED', 'PENDING', 'CONFIRMED', 'DELIVERED', 'CANCELLED'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
@@ -589,10 +712,10 @@ const OrderHistory = () => {
           <OrderDetailsModal
             order={selectedOrder}
             onClose={handleCloseModal}
-            onAccept={handleAccept}
-            onDecline={handleDecline}
-            onHold={handleHold}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
             onComplete={handleComplete}
+            onPending={handlePending}
           />
         )}
       </div>

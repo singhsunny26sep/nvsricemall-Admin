@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Image, X } from 'lucide-react';
+import Table from '../../components/models/Table';
+import { bannersAPI } from '../../components/api/api';
 
 // BannerForm Component
 const BannerForm = ({ banner, onSave, onCancel, title = "Edit Banner" }) => {
@@ -120,98 +122,67 @@ const BannerForm = ({ banner, onSave, onCancel, title = "Edit Banner" }) => {
   );
 };
 
-// Table Component
-const Table = ({ columns, data, actions, emptyMessage }) => {
-  if (data.length === 0) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        {emptyMessage}
-      </div>
-    );
-  }
 
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead className="bg-gray-50 border-b border-gray-200">
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                {column.header}
-              </th>
-            ))}
-            {actions && actions.length > 0 && (
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {data.map((row) => (
-            <tr key={row.id} className="hover:bg-gray-50">
-              {columns.map((column) => (
-                <td key={column.key} className={`px-6 py-4 ${column.className || ''}`}>
-                  {column.render ? column.render(row[column.key], row) : row[column.key]}
-                </td>
-              ))}
-              {actions && actions.length > 0 && (
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex gap-2">
-                    {actions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={() => action.onClick(row)}
-                        className={`p-2 rounded-lg transition-colors ${action.className}`}
-                        title={action.title}
-                      >
-                        {action.icon}
-                      </button>
-                    ))}
-                  </div>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
 
 // Main Banner Component
 const Banner = () => {
-  const [banners, setBanners] = useState([
-    { 
-      id: 1, 
-      name: 'Premium Basmati Rice Collection', 
-      description: 'Discover our finest selection of aged basmati rice',
-      imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
-    },
-    { 
-      id: 2, 
-      name: 'Organic Rice Varieties', 
-      description: 'Farm fresh organic rice for healthy living',
-      imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
-    },
-    { 
-      id: 3, 
-      name: 'Special Festive Offers', 
-      description: 'Limited time deals on bulk orders',
-      imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
-    }
-  ]);
-
+  const [banners, setBanners] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   const [mode, setMode] = useState('view');
   const [editingBanner, setEditingBanner] = useState(null);
-  const [nextId, setNextId] = useState(4);
+
+  useEffect(() => {
+    fetchBanners();
+  }, []);
+
+  const fetchBanners = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await bannersAPI.getBanners();
+      if (response.data && response.data.success) {
+        setBanners(response.data.data || []);
+      } else if (response.data?.data) {
+        setBanners(response.data.data);
+      } else if (Array.isArray(response.data)) {
+        setBanners(response.data);
+      } else {
+        setBanners([]);
+      }
+    } catch (err) {
+      console.error('Error fetching banners:', err);
+      setError(null);
+      // Fallback to static data if API not available
+      setBanners([
+        { 
+          _id: 1, 
+          name: 'Premium Basmati Rice Collection', 
+          description: 'Discover our finest selection of aged basmati rice',
+          imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
+        },
+        { 
+          _id: 2, 
+          name: 'Organic Rice Varieties', 
+          description: 'Farm fresh organic rice for healthy living',
+          imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
+        },
+        { 
+          _id: 3, 
+          name: 'Special Festive Offers', 
+          description: 'Limited time deals on bulk orders',
+          imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const columns = [
     {
-      key: 'id',
+      key: '_id',
       header: 'ID',
       className: 'whitespace-nowrap font-medium text-green-600'
     },
@@ -257,14 +228,22 @@ const Banner = () => {
     }
   ];
 
-  function handleAdd(bannerData) {
-    const newBanner = {
-      id: nextId,
-      ...bannerData
-    };
-    setBanners([...banners, newBanner]);
-    setNextId(nextId + 1);
-    setMode('view');
+  async function handleAdd(bannerData) {
+    try {
+      setLoading(true);
+      const response = await bannersAPI.createBanner(bannerData);
+      if (response.data && response.data.success) {
+        setBanners(prev => [...prev, response.data.data]);
+      } else {
+        setBanners(prev => [...prev, response.data]);
+      }
+      setMode('view');
+    } catch (err) {
+      console.error('Error creating banner:', err);
+      setError('Failed to create banner. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleEdit(banner) {
@@ -272,17 +251,41 @@ const Banner = () => {
     setMode('edit');
   }
 
-  function handleUpdate(updatedBanner) {
-    setBanners(banners.map(b =>
-      b.id === updatedBanner.id ? updatedBanner : b
-    ));
-    setMode('view');
-    setEditingBanner(null);
+  async function handleUpdate(bannerData) {
+    try {
+      setLoading(true);
+      const response = await bannersAPI.updateBanner(editingBanner._id || editingBanner.id, bannerData);
+      if (response.data && response.data.success) {
+        setBanners(prev => prev.map(b => 
+          (b._id || b.id) === (editingBanner._id || editingBanner.id) ? response.data.data : b
+        ));
+      } else {
+        setBanners(prev => prev.map(b => 
+          (b._id || b.id) === (editingBanner._id || editingBanner.id) ? { ...editingBanner, ...bannerData } : b
+        ));
+      }
+      setMode('view');
+      setEditingBanner(null);
+    } catch (err) {
+      console.error('Error updating banner:', err);
+      setError('Failed to update banner. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleDelete(banner) {
+  async function handleDelete(banner) {
     if (window.confirm(`Are you sure you want to delete "${banner.name}"?`)) {
-      setBanners(banners.filter(b => b.id !== banner.id));
+      try {
+        setLoading(true);
+        await bannersAPI.deleteBanner(banner._id || banner.id);
+        setBanners(prev => prev.filter(b => (b._id || b.id) !== (banner._id || banner.id)));
+      } catch (err) {
+        console.error('Error deleting banner:', err);
+        setError('Failed to delete banner. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -356,10 +359,11 @@ const Banner = () => {
             data={banners}
             actions={actions}
             emptyMessage="No banners found. Add your first banner to get started!"
+            loading={loading}
           />
         </div>
-
-        {/* Stats Summary */}
+        
+{/* Stats Summary */}
         {banners.length > 0 && (
           <div className="mt-6 bg-green-50 rounded-lg p-4">
             <div className="flex items-center justify-between text-green-800">
